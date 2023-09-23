@@ -1,0 +1,149 @@
+--Data Gathering
+
+--Creating the Datbase for The Dataset
+
+ CREATE DATABASE IF NOT EXISTS NashVille
+
+ --Import Dataset Into Database
+
+ --Selecting the active database
+
+SELECT *
+FROM NashVille..Nashvillehousing;
+
+--STANDARDISE DATE FORMAT
+
+ALTER TABLE NashVille..NashvilleHousing
+ALTER COLUMN SaleDate DATE;
+
+
+--POPULATE PROPERTY ADDRESS
+
+SELECT *
+FROM NashVille..Nashvillehousing
+WHERE PropertyAddress IS NULL
+ORDER BY ParcelID;
+
+SELECT A.ParcelID, A.PropertyAddress, B.ParcelID, B.PropertyAddress
+FROM NashVille..Nashvillehousing AS A
+JOIN NashVille..Nashvillehousing AS B
+ON A.ParcelID = B.ParcelID
+AND A.[UniqueID ] <> B.[UniqueID ]
+WHERE A.PropertyAddress IS NULL;
+
+UPDATE A
+SET PropertyAddress = ISNULL(A.PropertyAddress,B.PropertyAddress)
+FROM NashVille..Nashvillehousing AS A
+JOIN NashVille..Nashvillehousing AS B
+ON A.ParcelID = B.ParcelID
+AND A.[UniqueID ] <> B.[UniqueID ]
+WHERE A.PropertyAddress IS NULL;
+
+--BREAKING OUT PROPERTY ADDRESS INTO INDIVIDUAL COLUMNS (ADDRESS CITY STATE)
+SELECT PropertyAddress
+FROM NashVille..Nashvillehousing;
+
+SELECT 
+PARSENAME(REPLACE(PropertyAddress, ',', '.'), 2)
+,PARSENAME(REPLACE(PropertyAddress, ',', '.'), 1)
+FROM NashVille..Nashvillehousing;
+
+ALTER TABLE NashVille..Nashvillehousing
+ADD PropertSplitAddress Nvarchar(225);
+
+UPDATE NashVille..Nashvillehousing
+SET PropertSplitAddress = PARSENAME(REPLACE(PropertSplitAddress, ',', '.'), 2);
+
+
+ALTER TABLE NashVille..Nashvillehousing
+ADD PropertSplitCity Nvarchar(225);
+
+UPDATE NashVille..Nashvillehousing
+SET PropertSplitCity = PARSENAME(REPLACE(PropertSplitCity, ',', '.'), 1);
+
+
+--BREAKING OUT OWNER ADDRESS INTO INDIVIDUAL COLUMNS (ADDRESS CITY STATE) USING PARSE NAME
+SELECT *
+FROM NashVille..Nashvillehousing;
+
+
+SELECT 
+PARSENAME(REPLACE(OwnerAddress, ',', '.'), 3)
+,PARSENAME(REPLACE(OwnerAddress, ',', '.'), 2)
+,PARSENAME(REPLACE(OwnerAddress, ',', '.'), 1)
+FROM NashVille..Nashvillehousing;
+
+ALTER TABLE NashVille..Nashvillehousing
+ADD OwnerSplitAddress Nvarchar(225);
+
+UPDATE NashVille..Nashvillehousing
+SET OwnerSplitAddress = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 3);
+
+ALTER TABLE NashVille..Nashvillehousing
+ADD OwnerSplitCity Nvarchar(225);
+
+UPDATE NashVille..Nashvillehousing
+SET OwnerSplitCity = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 2);
+
+ALTER TABLE NashVille..Nashvillehousing
+ADD OwnerSplitState Nvarchar(225);
+
+UPDATE NashVille..Nashvillehousing
+SET OwnerSplitState = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 1);
+
+--Change Y and N to Yes and NO in SoldAsVacsnt field
+
+SELECT DISTINCT(SoldAsVacant), COUNT(SoldAsVacant)
+FROM NashVille..Nashvillehousing
+GROUP BY SoldAsVacant
+ORDER BY 2;
+
+SELECT SoldAsVacant
+, CASE 
+WHEN SoldAsVacant = 'Y' THEN 'Yes'
+WHEN SoldAsVacant = 'N' THEN 'No'
+ELSE SoldAsVacant 
+END
+FROM NashVille..Nashvillehousing
+ORDER BY 1;
+
+
+UPDATE NashVille..Nashvillehousing
+SET SoldAsVacant =  CASE 
+WHEN SoldAsVacant = 'Y' THEN 'Yes'
+WHEN SoldAsVacant = 'N' THEN 'No'
+ELSE SoldAsVacant 
+END;
+
+--Remove Duplicate 
+WITH ROWNUMCTE AS(
+SELECT *,
+	ROW_NUMBER() OVER(
+	PARTITION BY
+	ParcelID,
+	LegalReference
+	ORDER BY UniqueID) AS row_num
+
+FROM NashVille..Nashvillehousing
+)
+SELECT *
+FROM ROWNUMCTE
+WHERE row_num > 1;
+
+
+--DELETE USELESS COLUMN
+
+ALTER TABLE NashVille..Nashvillehousing
+DROP COLUMN PropertyAddress, OwnerAddress;
+
+--RENAME SOME COLUMNS
+
+sp_rename 'Nashville..Nashvillehousing.PropertSplitAddress', 'Property_Address'
+sp_rename 'Nashville..Nashvillehousing.PropertSplitCity', 'Property_City'
+
+sp_rename 'Nashville..Nashvillehousing.OwnerSplitAddress', 'Owner_Address'
+sp_rename 'Nashville..Nashvillehousing.OwnerSplitCity', 'Owner_City'
+sp_rename 'Nashville..Nashvillehousing.OwnerSplitState', 'Owner_State'
+
+--REARRANGE COLUMNS BY EDITING THE DESIGN OPTION OF THE TABLE
+
